@@ -1,0 +1,47 @@
+name: Compile sing-box Rulesets
+
+on:
+  push:
+    branches:
+      - main # 或 master，根据你的默认分支调整
+    paths:
+      - '**/*.json' # 仅在 JSON 文件被修改/新增时触发
+  workflow_dispatch: # 支持在 GitHub 页面手动点击触发
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install sing-box
+        run: |
+          # 自动获取并安装最新版 sing-box
+          SING_BOX_VERSION=$(curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | grep -oP '"tag_name": "v\K[^"]+')
+          wget "https://github.com/SagerNet/sing-box/releases/download/v${SING_BOX_VERSION}/sing-box-${SING_BOX_VERSION}-linux-amd64.tar.gz"
+          tar -zxvf sing-box-${SING_BOX_VERSION}-linux-amd64.tar.gz
+          sudo mv sing-box-${SING_BOX_VERSION}-linux-amd64/sing-box /usr/local/bin/
+          sing-box version
+
+      - name: Compile JSON to SRS
+        run: |
+          # 遍历所有 json 文件并编译为同名的 .srs
+          find . -type f -name "*.json" | while read -r json_file; do
+            srs_file="${json_file%.json}.srs"
+            echo "Compiling $json_file -> $srs_file"
+            sing-box rule-set compile "$json_file" -o "$srs_file"
+          done
+
+      - name: Commit and Push Compiled Rules
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add *.srs
+          # 检查是否有文件更新，避免产生无意义的空 commit
+          if git status --porcelain | grep -q 'A \|M '; then
+            git commit -m "auto: compile rulesets to srs [skip ci]"
+            git push
+          else
+            echo "No changes to commit"
+          fi
