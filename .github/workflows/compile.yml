@@ -24,13 +24,25 @@ jobs:
           sudo mv sing-box-${SING_BOX_VERSION}-linux-amd64/sing-box /usr/local/bin/
           sing-box version
 
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
       - name: Compile JSON to SRS
         run: |
-          # 遍历所有 json 文件并编译为同名的 .srs
+          # 遍历所有 json 文件
           find . -type f -name "*.json" | while read -r json_file; do
             srs_file="${json_file%.json}.srs"
             echo "Compiling $json_file -> $srs_file"
-            sing-box rule-set compile "$json_file" -o "$srs_file"
+            
+            # 使用 jq 删除顶层多余的 date 字段（如果还有 version 等非标准字段也可一并 del）
+            # 净化后的 json 存入临时文件后交由 sing-box 编译
+            jq 'del(.date)' "$json_file" > /tmp/clean_rule.json
+            
+            # 执行编译
+            sing-box rule-set compile /tmp/clean_rule.json -o "$srs_file"
+            
+            # 清理临时文件
+            rm -f /tmp/clean_rule.json
           done
 
       - name: Commit and Push Compiled Rules
