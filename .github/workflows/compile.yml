@@ -31,36 +31,51 @@ jobs:
       - name: Install jq
         run: sudo apt-get install -y jq
 
-      - name: Compile JSON to SRS
+      - name: Clean and Compile JSON to SRS
         run: |
-          # 1. 忽略 Mock 测试目录，只查找根目录及 sing-box 相关的 json 文件
+          echo "开始处理并编译规则文件..."
+          
+          # 定义需要过滤的水印/特征域名
+          TARGET_DOMAIN="7h15.ru1353t.1s.m4d3.by.5ukk4w.skk.moe"
+
           find . -type f -name "*.json" ! -path "*/Mock/*" | while read -r json_file; do
-            
-            # 2. 检查 JSON 根类型是否为 Object ({...})，如果是 Array 则直接跳过
+            # 1. 检查 JSON 根节点是否为对象 ({...})
             json_type=$(jq -r 'type' "$json_file" 2>/dev/null)
             if [ "$json_type" != "object" ]; then
-              echo "Skipping non-object JSON: $json_file"
               continue
             fi
 
-            # 3. 检查是否包含 sing-box 必须的 'rules' 字段
+            # 2. 检查是否包含 rules 字段
             has_rules=$(jq 'has("rules")' "$json_file" 2>/dev/null)
             if [ "$has_rules" != "true" ]; then
-              echo "Skipping non-ruleset JSON: $json_file"
               continue
             fi
 
             srs_file="${json_file%.json}.srs"
             echo "Processing and compiling: $json_file -> $srs_file"
 
-            # 4. 白名单提取：只保留 version 和 rules 标准字段
-            jq '{version: .version, rules: .rules}' "$json_file" > /tmp/clean_rule.json
+            # 3. 使用 jq 过滤特定域名 + 保留标准 root 字段 {version, rules}
+            # - map_values: 遍历 rules 数组下的每一个规则对象
+            # - del(.domain[]? / .domain_suffix[]?): 剔除指定的特定域名
+            # - del(select(... | length == 0)): 如果剔除后数组变空，一并清理掉空键，保持 JSON 简洁
+            jq --arg target "$TARGET_DOMAIN" '
+              {
+                version: .version,
+                rules: [
+                  .rules[] | 
+                  (if .domain then .domain |= map(select(. != $target)) else . end) |
+                  (if .domain_suffix then .domain_suffix |= map(select(. != $target)) else . end) |
+                  del(.domain[]? | select(. == null)) |
+                  del(.domain_suffix[]? | select(. == null))
+                ]
+              }
+            ' "$json_file" > /tmp/clean_rule.json
 
-            # 5. 执行编译
+            # 4. 执行 sing-box 编译
             if sing-box rule-set compile /tmp/clean_rule.json -o "$srs_file"; then
               echo "Successfully compiled: $srs_file"
             else
-              echo "Error compiling $json_file"
+              echo "Error compiling: $json_file"
               exit 1
             fi
 
