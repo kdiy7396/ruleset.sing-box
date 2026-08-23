@@ -21,7 +21,7 @@ jobs:
       - name: Fetch Latest JSON from Upstream
         run: |
           echo "开始拉取上游规则仓库..."
-          git clone --depth 1 https://github.com/SukkaW/ruleset.skk.moe.git /tmp/upstream
+          git clone --depth 1 https://github.com/SukkaLab/ruleset.skk.moe.git /tmp/upstream
 
           # 1. 复制 sing-box 子目录中的 json（如果存在）
           if [ -d "/tmp/upstream/sing-box" ]; then
