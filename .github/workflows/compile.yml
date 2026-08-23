@@ -29,22 +29,37 @@ jobs:
 
       - name: Compile JSON to SRS
         run: |
-          find . -type f -name "*.json" | while read -r json_file; do
+          # 1. 忽略 Mock 测试目录，只查找根目录及 sing-box 相关的 json 文件
+          find . -type f -name "*.json" ! -path "*/Mock/*" | while read -r json_file; do
+            
+            # 2. 检查 JSON 根类型是否为 Object ({...})，如果是 Array 则直接跳过
+            json_type=$(jq -r 'type' "$json_file" 2>/dev/null)
+            if [ "$json_type" != "object" ]; then
+              echo "Skipping non-object JSON: $json_file"
+              continue
+            fi
+
+            # 3. 检查是否包含 sing-box 必须的 'rules' 字段
+            has_rules=$(jq 'has("rules")' "$json_file" 2>/dev/null)
+            if [ "$has_rules" != "true" ]; then
+              echo "Skipping non-ruleset JSON: $json_file"
+              continue
+            fi
+
             srs_file="${json_file%.json}.srs"
-            echo "Processing and compiling $json_file -> $srs_file"
-            
-            # 关键一步：使用 jq 只保留 sing-box 官方标准的 root 字段 {version, rules}
-            # 这会自动抹除 date, expires, author, updated_at 等所有非标准字段
+            echo "Processing and compiling: $json_file -> $srs_file"
+
+            # 4. 白名单提取：只保留 version 和 rules 标准字段
             jq '{version: .version, rules: .rules}' "$json_file" > /tmp/clean_rule.json
-            
-            # 执行编译
+
+            # 5. 执行编译
             if sing-box rule-set compile /tmp/clean_rule.json -o "$srs_file"; then
               echo "Successfully compiled: $srs_file"
             else
-              echo "Failed to compile: $json_file"
+              echo "Error compiling $json_file"
               exit 1
             fi
-            
+
             rm -f /tmp/clean_rule.json
           done
 
