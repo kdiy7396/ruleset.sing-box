@@ -5,7 +5,7 @@ on:
     branches:
       - main # 或 master，根据你的默认分支调整
     paths:
-      - '**/*.json' # 仅在 JSON 文件被修改/新增时触发
+      - 'sing-box/*.json' # 仅在 JSON 文件被修改/新增时触发
   workflow_dispatch: # 支持在 GitHub 页面手动点击触发
 
 jobs:
