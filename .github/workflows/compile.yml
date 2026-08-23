@@ -3,11 +3,15 @@ name: Compile sing-box Rulesets
 on:
   push:
     branches:
-      - main # 或 master，根据你的默认分支调整
+      - main # 如果你的主分支是 master，请修改为 master
     paths:
-      - 'sing-box/*.json' # 仅在 JSON 文件被修改/新增时触发
-  workflow_dispatch: # 支持在 GitHub 页面手动点击触发
+      - '**/*.json'
+  workflow_dispatch:
 
+# ---------------- 关键增加部分 ----------------
+permissions:
+  contents: write # 赋予 GitHub Actions 对仓库内容的写权限 (Push 代码)
+# ----------------------------------------------
 jobs:
   compile:
     runs-on: ubuntu-latest
