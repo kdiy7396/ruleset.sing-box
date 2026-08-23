@@ -1,0 +1,65 @@
+name: Sync Upstream Rulesets
+
+on:
+  # 每日定时运行 (UTC 20:00，即北京时间/KST 凌晨 04:00)
+  schedule:
+    - cron: '0 20 * * *'
+  # 支持在 GitHub 页面手动点击运行测试
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write # 赋予调用/启动其他 Workflow 的权限
+
+jobs:
+  sync-upstream:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Fetch Latest JSON from Upstream
+        run: |
+          echo "开始拉取上游规则仓库..."
+          git clone --depth 1 https://github.com/SukkaW/ruleset.skk.moe.git /tmp/upstream
+
+          # 1. 复制 sing-box 子目录中的 json（如果存在）
+          if [ -d "/tmp/upstream/sing-box" ]; then
+            mkdir -p ./sing-box
+            cp -rf /tmp/upstream/sing-box/*.json ./sing-box/ 2>/dev/null || true
+          fi
+
+          # 2. 复制根目录中的 json
+          cp -rf /tmp/upstream/*.json ./ 2>/dev/null || true
+
+          rm -rf /tmp/upstream
+
+      - name: Commit and Push Updated JSONs
+        id: git_check
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          # 暂存所有拉取到的 json 文件
+          git add *.json */*.json 2>/dev/null || true
+
+          # 检查 json 文件是否有更新
+          if git status --porcelain | grep -q '\.json'; then
+            git commit -m "feat: sync json rulesets from upstream"
+            git push
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "上游 JSON 已同步并更新到本仓库。"
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "上游规则无任何更新。"
+          fi
+
+      - name: Trigger Compile Workflow
+        # 只要 JSON 有更新，或者你在 GitHub 页面手动点击触发时，就启动编译 Action
+        if: steps.git_check.outputs.has_changes == 'true' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "触发编译工作流 compile.yml ..."
+          # 语法：gh workflow run <编译Action的文件名或名称>
+          gh workflow run compile.yml || gh workflow run "Compile sing-box Rulesets"
