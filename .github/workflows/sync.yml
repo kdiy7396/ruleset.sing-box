@@ -23,23 +23,23 @@ jobs:
           echo "开始拉取上游规则仓库内容..."
           rm -rf /tmp/upstream
 
-          # 加入重试机制，避免瞬时网络问题导致 clone 失败
           for i in 1 2 3; do
-            git clone --depth 1 https://github.com/SukkaLab/ruleset.skk.moe.git /tmp/upstream && break
-            echo "第 $i 次 clone 失败，5 秒后重试..."
-            sleep 5
+          git clone --depth 1 https://github.com/SukkaLab/ruleset.skk.moe.git /tmp/upstream && break
+          echo "第 $i 次 clone 失败，5 秒后重试..."
+          sleep 5
           done
 
           if [ ! -d /tmp/upstream ]; then
-            echo "❌ 多次尝试后仍无法拉取上游仓库，终止本次同步。"
-            exit 1
+          echo "❌ 多次尝试后仍无法拉取上游仓库，终止本次同步。"
+          .exit 1
           fi
 
           mkdir -p ./sing-box
           if [ -d "/tmp/upstream/sing-box" ]; then
-            cp -f /tmp/upstream/sing-box/*.json ./sing-box/ 2>/dev/null || true
+          # 关键修复：用 -r 递归复制 domainset/ non_ip/ ip/ 等子目录及其内容
+          cp -rf /tmp/upstream/sing-box/. ./sing-box/
           fi
-          cp -f /tmp/upstream/*.json ./ 2>/dev/null || true
+
           rm -rf /tmp/upstream
 
       - name: Commit and Push Updated JSONs
@@ -49,7 +49,7 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
           # 1. 强制暂存所有 json 文件的更改（包括文件内行的增删修改）
-          git add -A *.json */*.json
+          git add -A ./sing-box
 
           # 2. 核心修改：使用 git diff-index 专门检查暂存区与 HEAD 之间的文件内容差异
           # 如果返回值不为 0，说明有文件内部内容（IP/Domain 等）被修改了
