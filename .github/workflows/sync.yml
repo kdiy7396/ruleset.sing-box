@@ -20,17 +20,16 @@ jobs:
 
       - name: Fetch Latest JSON from Upstream
         run: |
-          echo "开始拉取上游规则仓库..."
-          git clone --depth 1 https://github.com/SukkaLab/ruleset.skk.moe.git /tmp/upstream
+          echo "开始拉取上游规则仓库内容..."
+          git clone --depth 1 https://github.com/SukkaW/ruleset.skk.moe.git /tmp/upstream
 
-          # 1. 复制 sing-box 子目录中的 json（如果存在）
+          mkdir -p ./sing-box
+
+          # 强制覆盖复制：将上游最新文件覆盖到本地
           if [ -d "/tmp/upstream/sing-box" ]; then
-            mkdir -p ./sing-box
-            cp -rf /tmp/upstream/sing-box/*.json ./sing-box/ 2>/dev/null || true
+            cp -f /tmp/upstream/sing-box/*.json ./sing-box/ 2>/dev/null || true
           fi
-
-          # 2. 复制根目录中的 json
-          cp -rf /tmp/upstream/*.json ./ 2>/dev/null || true
+          cp -f /tmp/upstream/*.json ./ 2>/dev/null || true
 
           rm -rf /tmp/upstream
 
@@ -40,18 +39,20 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          # 暂存所有拉取到的 json 文件
-          git add *.json */*.json 2>/dev/null || true
+          # 1. 强制暂存所有 json 文件的更改（包括文件内行的增删修改）
+          git add -A *.json */*.json
 
-          # 检查 json 文件是否有更新
-          if git status --porcelain | grep -q '\.json'; then
-            git commit -m "feat: sync json rulesets from upstream"
+          # 2. 核心修改：使用 git diff-index 专门检查暂存区与 HEAD 之间的文件内容差异
+          # 如果返回值不为 0，说明有文件内部内容（IP/Domain 等）被修改了
+          if ! git diff-index --quiet HEAD --; then
+            echo "检测到 JSON 内容变动（IP/域名规则增减），准备提交..."
+            git commit -m "feat: sync updated ruleset content from upstream"
             git push
             echo "has_changes=true" >> $GITHUB_OUTPUT
-            echo "上游 JSON 已同步并更新到本仓库。"
+            echo "最新 JSON 已提交推送。"
           else
             echo "has_changes=false" >> $GITHUB_OUTPUT
-            echo "上游规则无任何更新。"
+            echo "比对结果：上游 JSON 内容与当前仓库完全一致，未发生任何增删修改。"
           fi
 
       - name: Trigger Compile Workflow
