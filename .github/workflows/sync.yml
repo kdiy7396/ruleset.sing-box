@@ -21,16 +21,25 @@ jobs:
       - name: Fetch Latest JSON from Upstream
         run: |
           echo "开始拉取上游规则仓库内容..."
-          git clone --depth 1 https://github.com/SukkaLab/ruleset.skk.moe.git /tmp/upstream
+          rm -rf /tmp/upstream
+
+          # 加入重试机制，避免瞬时网络问题导致 clone 失败
+          for i in 1 2 3; do
+            git clone --depth 1 https://github.com/SukkaLab/ruleset.skk.moe.git /tmp/upstream && break
+            echo "第 $i 次 clone 失败，5 秒后重试..."
+            sleep 5
+          done
+
+          if [ ! -d /tmp/upstream ]; then
+            echo "❌ 多次尝试后仍无法拉取上游仓库，终止本次同步。"
+            exit 1
+          fi
 
           mkdir -p ./sing-box
-
-          # 强制覆盖复制：将上游最新文件覆盖到本地
           if [ -d "/tmp/upstream/sing-box" ]; then
             cp -f /tmp/upstream/sing-box/*.json ./sing-box/ 2>/dev/null || true
           fi
           cp -f /tmp/upstream/*.json ./ 2>/dev/null || true
-
           rm -rf /tmp/upstream
 
       - name: Commit and Push Updated JSONs
