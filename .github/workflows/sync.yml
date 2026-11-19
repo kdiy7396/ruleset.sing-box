@@ -23,15 +23,16 @@ jobs:
           echo "开始拉取上游规则仓库内容..."
           rm -rf /tmp/upstream
 
-          for i in 1 2 3; do
+          for i in 1 2 3 4 5; do
+          rm -rf /tmp/upstream
           git clone --depth 1 https://github.com/SukkaLab/ruleset.skk.moe.git /tmp/upstream && break
-          echo "第 $i 次 clone 失败，5 秒后重试..."
-          sleep 5
+          echo "第 $i 次 clone 失败，15 秒后重试..."
+          sleep 15
           done
 
           if [ ! -d /tmp/upstream ]; then
           echo "❌ 多次尝试后仍无法拉取上游仓库，终止本次同步。"
-          .exit 1
+          exit 1
           fi
 
           mkdir -p ./sing-box
